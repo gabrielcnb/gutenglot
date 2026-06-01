@@ -32,17 +32,20 @@
 
     body { background:var(--bg); color:var(--text); font-family:'Inter','Segoe UI',system-ui,sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:2rem 1rem; transition: background .3s, color .3s; }
 
-    header { text-align:center; margin-bottom:2rem; position: relative; width: 100%; max-width: 660px; }
+    header { text-align:center; margin-bottom:2rem; width: 100%; max-width: 660px; }
+    /* Top control bar: language (left) + theme (right), so neither overlaps the title */
+    .header-bar { display:flex; justify-content:space-between; align-items:center; gap:.5rem; margin-bottom:1rem; }
     header h1 { font-size:2.1rem; font-weight:700; font-family:'Playfair Display',Georgia,serif; color:var(--text); }
     header h1 em { font-style:italic; color:var(--accent); }
     header p { color:var(--muted); margin-top:.4rem; }
+    header .subtitle { font-size:.8rem; margin-top:.5rem; opacity:.85; }
 
     /* Theme toggle */
-    .theme-toggle { position:absolute; top:0; right:0; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:.35rem .6rem; cursor:pointer; font-size:1.1rem; line-height:1; transition: background .2s; color:var(--muted); }
+    .theme-toggle { flex-shrink:0; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:.35rem .6rem; cursor:pointer; font-size:1.1rem; line-height:1; transition: background .2s; color:var(--muted); }
     .theme-toggle:hover { background:var(--border); color:var(--text); }
 
     /* Language selector */
-    .lang-select { position:absolute; top:0; left:0; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:.35rem 1.5rem .35rem .55rem; cursor:pointer; font-size:.82rem; line-height:1; color:var(--muted); font-family:inherit; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a8e82' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .5rem center; transition: background-color .2s; }
+    .lang-select { width:auto; max-width:150px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:.35rem 1.6rem .35rem .55rem; cursor:pointer; font-size:.82rem; line-height:1; color:var(--muted); font-family:inherit; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a8e82' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .5rem center; transition: background-color .2s; }
     .lang-select:hover { color:var(--text); }
     .lang-select:focus { outline:none; border-color:var(--accent); }
 
@@ -140,10 +143,13 @@
 <body>
 
 <header>
-  <select class="lang-select" id="langSelect" data-i18n-title="language" title="Language" aria-label="Language"></select>
+  <div class="header-bar">
+    <select class="lang-select" id="langSelect" data-i18n-title="language" title="Language" aria-label="Language"></select>
+    <button class="theme-toggle" id="themeToggle" data-i18n-title="theme_toggle" title="Toggle theme">&#9790;</button>
+  </div>
   <h1>Guten<em>glot</em></h1>
   <p data-i18n="tagline">Every book, in any language — ready for any e-reader</p>
-  <button class="theme-toggle" id="themeToggle" data-i18n-title="theme_toggle" title="Toggle theme">&#9790;</button>
+  <p class="subtitle" data-i18n="subtitle">Free · no sign-up · files deleted after 1 hour</p>
 </header>
 
 <div class="card">
@@ -173,7 +179,7 @@
 
   <!-- TRANSLATE panel -->
   <div id="panel-translate">
-    <div class="row-3">
+    <div class="row">
       <div class="field">
         <label for="sourceLang" data-i18n="label_source">Source Language</label>
         <select id="sourceLang"><option value="auto" data-i18n="opt_auto">Auto Detect</option></select>
@@ -182,33 +188,37 @@
         <label for="targetLang" data-i18n="label_target">Target Language</label>
         <select id="targetLang"><option value="pt">Portuguese</option></select>
       </div>
-      <div class="field">
+    </div>
+
+    <!-- Advanced options (collapsed by default to keep first use simple) -->
+    <div class="collapsible-header" id="advancedToggle" onclick="toggleCollapsible(this)">
+      <span class="collapsible-arrow">&#9654;</span>
+      <span data-i18n="advanced">Advanced options</span>
+    </div>
+    <div class="collapsible-content" id="advancedContent">
+      <div class="toggle-row" style="margin-top:.6rem">
+        <label class="toggle">
+          <input type="checkbox" id="bilingualToggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="toggle-label" data-i18n="bilingual" onclick="document.getElementById('bilingualToggle').click()">
+          Bilingual mode — show original &amp; translation side by side
+        </span>
+      </div>
+
+      <div class="field" style="margin-top:1rem">
         <label for="engineSelect" data-i18n="label_engine">Translation Engine</label>
         <select id="engineSelect">
           <option value="google">Google Translate</option>
           <option value="mymemory">MyMemory</option>
         </select>
       </div>
-    </div>
 
-    <div class="toggle-row">
-      <label class="toggle">
-        <input type="checkbox" id="bilingualToggle" />
-        <span class="slider"></span>
-      </label>
-      <span class="toggle-label" data-i18n="bilingual" onclick="document.getElementById('bilingualToggle').click()">
-        Bilingual mode — show original &amp; translation side by side
-      </span>
-    </div>
-
-    <!-- Glossary (collapsible) -->
-    <div class="collapsible-header" id="glossaryToggle" onclick="toggleCollapsible(this)">
-      <span class="collapsible-arrow">&#9654;</span>
-      <span data-i18n="glossary_title">Protected terms (glossary)</span>
-    </div>
-    <div class="collapsible-content" id="glossaryContent">
-      <textarea id="glossaryInput" data-i18n-ph="glossary_ph" placeholder="One term per line, e.g.:&#10;Harry Potter&#10;Hogwarts&#10;Dumbledore"></textarea>
-      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem" data-i18n="glossary_hint">These terms will not be translated.</div>
+      <div class="field" style="margin-top:1rem">
+        <label data-i18n="glossary_title">Protected terms (glossary)</label>
+        <textarea id="glossaryInput" data-i18n-ph="glossary_ph" placeholder="One term per line, e.g.:&#10;Harry Potter&#10;Hogwarts&#10;Dumbledore"></textarea>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem" data-i18n="glossary_hint">These terms will not be translated.</div>
+      </div>
     </div>
 
     <div class="status warn" id="langWarning" data-i18n="warn_samelang" style="display:none">Source and target languages are the same.</div>
@@ -273,6 +283,10 @@
     en: {
       language: 'Language', theme_toggle: 'Toggle theme',
       tagline: 'Every book, in any language — ready for any e-reader',
+      subtitle: 'Free · no sign-up · files deleted after 1 hour',
+      step1: 'Upload your book', step2: 'Pick the language', step3: 'Download it translated',
+      step_hint: 'EPUB, PDF, MOBI or AZW3 — up to 50 MB',
+      advanced: 'Advanced options',
       tab_translate: 'Translate', tab_convert: 'Convert Format',
       drop_label: '<strong>Click to upload</strong> or drag &amp; drop',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — max 50 MB', remove: 'Remove',
@@ -314,6 +328,10 @@
     pt: {
       language: 'Idioma', theme_toggle: 'Alternar tema',
       tagline: 'Todo livro, em qualquer idioma — pronto para qualquer e-reader',
+      subtitle: 'Grátis · sem cadastro · arquivos apagados após 1 hora',
+      step1: 'Envie seu livro', step2: 'Escolha o idioma', step3: 'Baixe traduzido',
+      step_hint: 'EPUB, PDF, MOBI ou AZW3 — até 50 MB',
+      advanced: 'Opções avançadas',
       tab_translate: 'Traduzir', tab_convert: 'Converter formato',
       drop_label: '<strong>Clique para enviar</strong> ou arraste e solte',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — máx 50 MB', remove: 'Remover',
@@ -355,6 +373,10 @@
     es: {
       language: 'Idioma', theme_toggle: 'Cambiar tema',
       tagline: 'Cada libro, en cualquier idioma — listo para cualquier e-reader',
+      subtitle: 'Gratis · sin registro · archivos eliminados tras 1 hora',
+      step1: 'Sube tu libro', step2: 'Elige el idioma', step3: 'Descárgalo traducido',
+      step_hint: 'EPUB, PDF, MOBI o AZW3 — hasta 50 MB',
+      advanced: 'Opciones avanzadas',
       tab_translate: 'Traducir', tab_convert: 'Convertir formato',
       drop_label: '<strong>Haz clic para subir</strong> o arrastra y suelta',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — máx 50 MB', remove: 'Quitar',
@@ -396,6 +418,10 @@
     fr: {
       language: 'Langue', theme_toggle: 'Changer de thème',
       tagline: 'Chaque livre, dans toutes les langues — prêt pour toute liseuse',
+      subtitle: 'Gratuit · sans inscription · fichiers supprimés après 1 heure',
+      step1: 'Importez votre livre', step2: 'Choisissez la langue', step3: 'Téléchargez-le traduit',
+      step_hint: 'EPUB, PDF, MOBI ou AZW3 — jusqu\'à 50 Mo',
+      advanced: 'Options avancées',
       tab_translate: 'Traduire', tab_convert: 'Convertir le format',
       drop_label: '<strong>Cliquez pour téléverser</strong> ou glissez-déposez',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — max 50 Mo', remove: 'Retirer',
@@ -437,6 +463,10 @@
     de: {
       language: 'Sprache', theme_toggle: 'Thema wechseln',
       tagline: 'Jedes Buch, in jeder Sprache — bereit für jeden E-Reader',
+      subtitle: 'Kostenlos · ohne Anmeldung · Dateien nach 1 Stunde gelöscht',
+      step1: 'Buch hochladen', step2: 'Sprache wählen', step3: 'Übersetzt herunterladen',
+      step_hint: 'EPUB, PDF, MOBI oder AZW3 — bis 50 MB',
+      advanced: 'Erweiterte Optionen',
       tab_translate: 'Übersetzen', tab_convert: 'Format umwandeln',
       drop_label: '<strong>Zum Hochladen klicken</strong> oder ziehen &amp; ablegen',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — max. 50 MB', remove: 'Entfernen',
@@ -478,6 +508,10 @@
     it: {
       language: 'Lingua', theme_toggle: 'Cambia tema',
       tagline: 'Ogni libro, in qualsiasi lingua — pronto per qualsiasi e-reader',
+      subtitle: 'Gratis · senza registrazione · file eliminati dopo 1 ora',
+      step1: 'Carica il tuo libro', step2: 'Scegli la lingua', step3: 'Scaricalo tradotto',
+      step_hint: 'EPUB, PDF, MOBI o AZW3 — fino a 50 MB',
+      advanced: 'Opzioni avanzate',
       tab_translate: 'Traduci', tab_convert: 'Converti formato',
       drop_label: '<strong>Clicca per caricare</strong> o trascina qui',
       drop_formats: 'EPUB · PDF · MOBI · AZW3 — max 50 MB', remove: 'Rimuovi',
