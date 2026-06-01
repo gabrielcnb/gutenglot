@@ -2,13 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Calibre for high-quality EPUB↔PDF conversion
+# Calibre for high-quality EPUB↔PDF/MOBI/AZW3 conversion (xvfb for headless runs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     calibre \
     xvfb \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    tesseract-ocr-por \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

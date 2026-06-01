@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Callable
 
 import fitz  # PyMuPDF
@@ -8,6 +9,38 @@ from app.translator import batch_translate
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 15
+MIN_FONT_SIZE = 5
+
+
+def _insert_fitted_text(page, bbox: "fitz.Rect", text: str, fontsize: float, color, page_idx: int) -> None:
+    """Place translated text inside ``bbox``, shrinking the font so it fits.
+
+    ``insert_textbox`` returns a NEGATIVE number when the text doesn't fit, and
+    in that case renders nothing — so the original code silently dropped any
+    translation longer than its source line. We estimate the wrapped height and
+    shrink the font first, then fall back to un-clipped ``insert_text``.
+    """
+    width = max(bbox.width, 1.0)
+    height = max(bbox.height, 1.0)
+    size = fontsize
+    for _ in range(8):
+        text_width = fitz.get_text_length(text, fontname="helv", fontsize=size)
+        lines = max(1, math.ceil(text_width / width))
+        if lines * size * 1.2 <= height or size <= MIN_FONT_SIZE:
+            break
+        size *= 0.85
+
+    try:
+        rc = page.insert_textbox(bbox, text, fontsize=size, color=color, align=0)
+    except Exception:
+        rc = -1.0
+
+    if rc is None or rc < 0:
+        # Last resort: draw at the baseline without clipping (may overlap, but visible).
+        try:
+            page.insert_text((bbox.x0, bbox.y1), text, fontsize=min(size, 8), color=color)
+        except Exception:
+            logger.warning("Failed to insert text on page %d", page_idx + 1)
 
 
 async def translate_pdf(
@@ -72,13 +105,9 @@ async def translate_pdf(
             )
 
             for (bbox, fontsize, color, _), translated in zip(span_data, translations):
-                try:
-                    new_page.insert_textbox(bbox, translated, fontsize=fontsize, color=color, align=0)
-                except Exception:
-                    try:
-                        new_page.insert_text((bbox.x0, bbox.y1), translated, fontsize=fontsize, color=color)
-                    except Exception:
-                        logger.warning("Failed to insert text at (%s, %s) on page %d", bbox.x0, bbox.y1, page_idx + 1)
+                if not translated:
+                    continue
+                _insert_fitted_text(new_page, bbox, translated, fontsize, color, page_idx)
         elif progress_callback:
             progress_callback(int((page_idx + 1) / total * 90))
 

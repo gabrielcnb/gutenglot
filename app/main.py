@@ -25,9 +25,12 @@ logger = logging.getLogger(__name__)
 
 VERSION = "3.0.0"
 
-app = FastAPI(title="Kindle Book Translator", version=VERSION)
+app = FastAPI(title="Gutenglot", version=VERSION)
 
-cors_origins = os.getenv("CORS_ORIGINS", "https://kindle-book-translator.onrender.com,http://localhost:8000").split(",")
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "https://gutenglot.onrender.com,https://gutenglot.com,https://www.gutenglot.com,http://localhost:8000",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -274,7 +277,7 @@ async def get_languages():
 async def info():
     return {
         "calibre_available": calibre_available(),
-        "cache_stats": cache.stats(),
+        "cache_entries": cache.stats().get("entries", 0),
         "version": VERSION,
         "engines": list(ENGINES.keys()),
         "supported_formats": list(SUPPORTED_INPUT),
@@ -284,9 +287,10 @@ async def info():
 @app.post("/cover")
 async def get_cover(file: UploadFile = File(...)):
     """Return book cover as JPEG/PNG image."""
-    content = await file.read()
+    # Cap the read so a huge upload can't exhaust memory before the size check.
+    content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
-        raise HTTPException(400, "File too large.")
+        raise HTTPException(413, "File too large. Maximum size is 50 MB.")
 
     ext = Path(file.filename or "").suffix.lower()
     if ext == ".epub":
@@ -328,9 +332,10 @@ async def start_translation(
     ip = '.'.join(raw_ip.split('.')[:3]) + '.0' if '.' in raw_ip else raw_ip
     _check_rate_limit(ip)
 
-    content = await file.read()
+    # Cap the read so a huge upload can't exhaust memory before the size check.
+    content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
-        raise HTTPException(400, "File too large. Maximum size is 50 MB.")
+        raise HTTPException(413, "File too large. Maximum size is 50 MB.")
 
     filename = file.filename or "book"
     ext = Path(filename).suffix.lower()
@@ -379,9 +384,10 @@ async def start_conversion(
     ip = '.'.join(raw_ip.split('.')[:3]) + '.0' if '.' in raw_ip else raw_ip
     _check_rate_limit(ip)
 
-    content = await file.read()
+    # Cap the read so a huge upload can't exhaust memory before the size check.
+    content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
-        raise HTTPException(400, "File too large.")
+        raise HTTPException(413, "File too large. Maximum size is 50 MB.")
 
     filename = file.filename or "book"
     src_ext = Path(filename).suffix.lower()

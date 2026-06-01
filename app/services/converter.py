@@ -137,7 +137,8 @@ async def pdf_to_epub(pdf_bytes: bytes, title: str = "Book") -> bytes:
     book.add_item(epub_lib.EpubNav())
     book.spine = ["nav"] + chapters
 
-    out = io.BytesIO()
-    epub_lib.write_epub(out, book)
-    out.seek(0)
-    return out.read()
+    # write_epub needs a real file path, not a BytesIO.
+    with tempfile.TemporaryDirectory() as tmp:
+        out_path = Path(tmp) / "out.epub"
+        epub_lib.write_epub(str(out_path), book)
+        return out_path.read_bytes()

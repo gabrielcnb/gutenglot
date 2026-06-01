@@ -1,11 +1,8 @@
 services:
   - type: web
-    name: kindle-book-translator
+    name: gutenglot
     runtime: docker
     region: frankfurt
     plan: free
     healthCheckPath: /health
     autoDeploy: true
-    envVars:
-      - key: LOG_API_KEY
-        sync: false

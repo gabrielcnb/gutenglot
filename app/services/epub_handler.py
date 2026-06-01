@@ -1,4 +1,5 @@
-import io
+import os
+import tempfile
 from typing import Callable
 import ebooklib
 from ebooklib import epub
@@ -70,9 +71,16 @@ async def translate_epub(
     engine: str = "google",
     glossary: list[str] | None = None,
 ) -> bytes:
-    book = epub.read_epub(io.BytesIO(file_bytes))
+    # ebooklib's read_epub needs a real file path (it calls os.path.isdir on the
+    # argument), so a BytesIO is not accepted — stage the upload in a temp file.
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tf:
+        tf.write(file_bytes)
+        in_path = tf.name
+    try:
+        book = epub.read_epub(in_path)
+    finally:
+        os.unlink(in_path)
     items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
-    total = max(len(items), 1)
 
     # Parse all documents once — reuse soup for both counting and translating
     parsed: list[tuple[BeautifulSoup, list[tuple[Tag, list[NavigableString]]]]] = []
@@ -140,11 +148,17 @@ async def translate_epub(
 
         item.set_content(str(soup).encode("utf-8"))
 
-    out = io.BytesIO()
-    epub.write_epub(out, book)
-    out.seek(0)
+    # write_epub likewise needs a real path.
+    out_fd, out_path = tempfile.mkstemp(suffix=".epub")
+    os.close(out_fd)
+    try:
+        epub.write_epub(out_path, book)
+        with open(out_path, "rb") as f:
+            data = f.read()
+    finally:
+        os.unlink(out_path)
 
     if progress_callback:
         progress_callback(100)
 
-    return out.read()
+    return data
