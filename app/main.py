@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.translator import LANGUAGES, ENGINES, begin_stats
+from app.security import check_zip_safety, safe_output_stem, UnsafeFileError
 from app.services.epub_handler import translate_epub
 from app.services.pdf_handler import translate_pdf
 from app.services.converter import epub_to_pdf, pdf_to_epub, calibre_available, convert_to_epub
@@ -46,6 +47,17 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # CSP tuned to what the single-page UI actually uses: inline <style>/style=
+    # and inline <script>, self-hosted fetches, Google Fonts, and SVG/data: icons.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self'; "
+        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    )
     return response
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
@@ -206,7 +218,7 @@ async def _run_translation(
             warning_pct = round(stats["failed"] / stats["chunks"] * 100)
 
         suffix = "_bilingual" if bilingual else f"_translated_{target_lang}"
-        out_name = Path(filename).stem + suffix + out_ext
+        out_name = safe_output_stem(filename) + suffix + out_ext
         out_path = TEMP_DIR / f"{job_id}{out_ext}"
         out_path.write_bytes(result)
 
@@ -258,13 +270,13 @@ async def _run_conversion(
             result = await epub_to_pdf(content)
             media = "application/pdf"
         elif src_ext == ".pdf" and out_ext == ".epub":
-            result = await pdf_to_epub(content, title=Path(filename).stem)
+            result = await pdf_to_epub(content, title=safe_output_stem(filename))
             media = "application/epub+zip"
         else:
             raise ValueError(f"Unsupported conversion: {src_ext} → {out_ext}")
 
         on_progress(95)
-        out_name = Path(filename).stem + out_ext
+        out_name = safe_output_stem(filename) + out_ext
         out_path = TEMP_DIR / f"{job_id}{out_ext}"
         out_path.write_bytes(result)
 
@@ -320,6 +332,10 @@ async def get_cover(file: UploadFile = File(...)):
     content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
         raise HTTPException(413, "File too large. Maximum size is 50 MB.")
+    try:
+        check_zip_safety(content)
+    except UnsafeFileError as e:
+        raise HTTPException(400, str(e))
 
     ext = Path(file.filename or "").suffix.lower()
     if ext == ".epub":
@@ -367,6 +383,10 @@ async def start_translation(
         raise HTTPException(413, "File too large. Maximum size is 50 MB.")
     if not content:
         raise HTTPException(400, "The file is empty. Please choose a valid book file.")
+    try:
+        check_zip_safety(content)
+    except UnsafeFileError as e:
+        raise HTTPException(400, str(e))
 
     filename = file.filename or "book"
     ext = Path(filename).suffix.lower()
@@ -421,6 +441,10 @@ async def start_conversion(
         raise HTTPException(413, "File too large. Maximum size is 50 MB.")
     if not content:
         raise HTTPException(400, "The file is empty. Please choose a valid book file.")
+    try:
+        check_zip_safety(content)
+    except UnsafeFileError as e:
+        raise HTTPException(400, str(e))
 
     filename = file.filename or "book"
     src_ext = Path(filename).suffix.lower()
