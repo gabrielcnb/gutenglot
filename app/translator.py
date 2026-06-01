@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import logging
 import re
 from typing import Callable
@@ -7,6 +8,30 @@ from deep_translator import GoogleTranslator, MyMemoryTranslator
 from app import cache
 
 logger = logging.getLogger(__name__)
+
+# Per-job translation stats, propagated to all asyncio.gather children via a
+# shared mutable dict. Lets a job report when chunks silently fell back to the
+# original text (e.g. the free Google endpoint rate-limited the server IP), so
+# the user is warned instead of receiving an "untranslated" book with no notice.
+_stats_var: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "translate_stats", default=None
+)
+
+
+def begin_stats() -> dict:
+    """Start a fresh stats accumulator for the current job context."""
+    stats = {"chunks": 0, "failed": 0}
+    _stats_var.set(stats)
+    return stats
+
+
+def _record(success: bool) -> None:
+    stats = _stats_var.get()
+    if stats is None:
+        return
+    stats["chunks"] += 1
+    if not success:
+        stats["failed"] += 1
 
 LANGUAGES = {
     "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic",
@@ -125,7 +150,12 @@ def split_text(text: str, max_size: int = MAX_CHUNK) -> list[str]:
 
 
 async def _translate_chunk(translator, chunk: str, engine: str) -> str:
-    """Translate a single chunk with timeout, retry, and engine fallback."""
+    """Translate a single chunk with timeout, retry, and engine fallback.
+
+    Records success/failure in the per-job stats. On total failure it returns
+    the original chunk (so the book stays readable) but flags it as failed, so
+    the job can warn the user rather than silently shipping untranslated text.
+    """
     last_exc: BaseException | None = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -133,6 +163,7 @@ async def _translate_chunk(translator, chunk: str, engine: str) -> str:
                 asyncio.to_thread(translator.translate, chunk),
                 timeout=TRANSLATE_TIMEOUT,
             )
+            _record(True)
             return result or chunk
         except (asyncio.TimeoutError, Exception) as e:
             last_exc = e
@@ -150,11 +181,13 @@ async def _translate_chunk(translator, chunk: str, engine: str) -> str:
             timeout=TRANSLATE_TIMEOUT,
         )
         logger.info("Fallback to %s succeeded", fallback_engine)
+        _record(True)
         return result or chunk
     except Exception:
         pass
 
     logger.warning("Chunk failed after %d attempts + fallback: %s", MAX_RETRIES, last_exc)
+    _record(False)
     return chunk
 
 

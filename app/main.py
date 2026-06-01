@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.translator import LANGUAGES, ENGINES
+from app.translator import LANGUAGES, ENGINES, begin_stats
 from app.services.epub_handler import translate_epub
 from app.services.pdf_handler import translate_pdf
 from app.services.converter import epub_to_pdf, pdf_to_epub, calibre_available, convert_to_epub
@@ -59,6 +59,11 @@ MAX_JOB_AGE = 3600  # 1 hour
 CLEANUP_INTERVAL = 300  # 5 minutes
 RATE_LIMIT_MAX = 5  # max jobs per IP per hour
 SUPPORTED_INPUT = frozenset({".epub", ".pdf", ".mobi", ".azw3"})
+
+
+class _CorruptFileError(Exception):
+    """Raised when an uploaded file can't be opened/parsed as its format."""
+
 
 jobs: dict[str, dict] = {}
 job_queues: dict[str, asyncio.Queue] = {}
@@ -164,25 +169,41 @@ async def _run_translation(
         jobs[job_id]["progress"] = val
         _push(job_id, {"progress": val, "status": "running"})
 
+    stats = begin_stats()
     try:
         # Convert MOBI/AZW3 to EPUB first
-        original_ext = ext
         if ext in (".mobi", ".azw3"):
             content = await convert_to_epub(content, ext)
             ext = ".epub"
 
-        if ext == ".epub":
-            result = await translate_epub(
-                content, source_lang, target_lang, on_progress,
-                bilingual=bilingual, engine=engine, glossary=glossary,
-            )
-            out_ext, media = ".epub", "application/epub+zip"
-        else:
-            result = await translate_pdf(
-                content, source_lang, target_lang, on_progress,
-                engine=engine, glossary=glossary,
-            )
-            out_ext, media = ".pdf", "application/pdf"
+        try:
+            if ext == ".epub":
+                result = await translate_epub(
+                    content, source_lang, target_lang, on_progress,
+                    bilingual=bilingual, engine=engine, glossary=glossary,
+                )
+                out_ext, media = ".epub", "application/epub+zip"
+            else:
+                result = await translate_pdf(
+                    content, source_lang, target_lang, on_progress,
+                    engine=engine, glossary=glossary,
+                )
+                out_ext, media = ".pdf", "application/pdf"
+        except asyncio.CancelledError:
+            raise
+        except Exception as parse_err:
+            # Reaching here means the file itself couldn't be opened/parsed
+            # (corrupt or not a real EPUB/PDF) — distinct from a translation
+            # backend failure, which is handled per-chunk and never raises.
+            raise _CorruptFileError() from parse_err
+
+        # Warn if a large share of the text couldn't be translated and was
+        # passed through in the original language (e.g. the free translation
+        # endpoint rate-limited us). Better an honest warning than a book that
+        # looks translated but isn't.
+        warning_pct = None
+        if stats["chunks"] >= 10 and stats["failed"] / stats["chunks"] > 0.2:
+            warning_pct = round(stats["failed"] / stats["chunks"] * 100)
 
         suffix = "_bilingual" if bilingual else f"_translated_{target_lang}"
         out_name = Path(filename).stem + suffix + out_ext
@@ -193,14 +214,22 @@ async def _run_translation(
             "status": "done", "progress": 100,
             "file_path": str(out_path), "filename": out_name, "media_type": media,
         })
-        _push(job_id, {"progress": 100, "status": "done", "download_url": f"/download/{job_id}"})
+        done_event = {"progress": 100, "status": "done", "download_url": f"/download/{job_id}"}
+        if warning_pct is not None:
+            jobs[job_id]["warning_pct"] = warning_pct
+            done_event["warning_pct"] = warning_pct
+        _push(job_id, done_event)
 
     except asyncio.CancelledError:
         jobs[job_id].update({"status": "error", "progress": 0, "error": "Translation cancelled."})
         _push(job_id, {"progress": 0, "status": "error", "error": "Translation cancelled."})
+    except _CorruptFileError:
+        msg = "We couldn't read this file. It may be corrupted or not a valid EPUB/PDF. Try re-exporting it or using a different file."
+        jobs[job_id].update({"status": "error", "progress": 0, "error": msg})
+        _push(job_id, {"progress": 0, "status": "error", "error": msg})
     except Exception as e:
         logger.error("Translation job %s failed: %s", job_id, e, exc_info=True)
-        user_msg = "Translation failed. Please try again or use a different file."
+        user_msg = "Translation failed. Please try again in a moment."
         jobs[job_id].update({"status": "error", "progress": 0, "error": user_msg})
         _push(job_id, {"progress": 0, "status": "error", "error": user_msg})
     finally:
@@ -336,6 +365,8 @@ async def start_translation(
     content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
         raise HTTPException(413, "File too large. Maximum size is 50 MB.")
+    if not content:
+        raise HTTPException(400, "The file is empty. Please choose a valid book file.")
 
     filename = file.filename or "book"
     ext = Path(filename).suffix.lower()
@@ -388,6 +419,8 @@ async def start_conversion(
     content = await file.read(MAX_SIZE + 1)
     if len(content) > MAX_SIZE:
         raise HTTPException(413, "File too large. Maximum size is 50 MB.")
+    if not content:
+        raise HTTPException(400, "The file is empty. Please choose a valid book file.")
 
     filename = file.filename or "book"
     src_ext = Path(filename).suffix.lower()
@@ -471,6 +504,8 @@ async def job_status(job_id: str):
     result = {"progress": job.get("progress", 0), "status": job.get("status", "running")}
     if job.get("status") == "done":
         result["download_url"] = f"/download/{job_id}"
+        if job.get("warning_pct") is not None:
+            result["warning_pct"] = job["warning_pct"]
     if job.get("status") == "error":
         result["error"] = job.get("error", "")
     return result
