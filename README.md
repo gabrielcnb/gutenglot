@@ -135,6 +135,19 @@ If this tool is useful to you, consider supporting development:
 
 ---
 
+## Copyright & responsible use
+
+Gutenglot is a tool for translating books **you have the right to translate** —
+books you own, books you wrote, or works in the public domain. You are solely
+responsible for ensuring you have the rights to any file you upload, and for
+complying with the copyright laws that apply to you. The maintainers do not host,
+store, or distribute any uploaded book: files are processed transiently and
+deleted automatically (within 1 hour on the hosted instance).
+
+The software is provided "as is", without warranty of any kind (see License).
+
+---
+
 ## License
 
 MIT
