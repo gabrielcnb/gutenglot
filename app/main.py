@@ -7,6 +7,7 @@ import tempfile
 import time
 import uuid
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -26,7 +27,35 @@ logger = logging.getLogger(__name__)
 
 VERSION = "3.0.0"
 
-app = FastAPI(title="Gutenglot", version=VERSION)
+_shutting_down = False
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Startup: periodic cleanup of expired jobs + graceful SIGTERM handling.
+    async def _cleanup_loop():
+        while True:
+            await asyncio.sleep(CLEANUP_INTERVAL)
+            _cleanup_old_jobs()
+
+    def _handle_sigterm(*_):
+        global _shutting_down
+        _shutting_down = True
+        logger.info("SIGTERM received, waiting for active jobs to finish (max 30s)…")
+
+    try:
+        signal.signal(signal.SIGTERM, _handle_sigterm)
+    except (OSError, ValueError):
+        pass  # Not available on all platforms
+
+    task = asyncio.create_task(_cleanup_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+app = FastAPI(title="Gutenglot", version=VERSION, lifespan=lifespan)
 
 cors_origins = os.getenv(
     "CORS_ORIGINS",
@@ -105,34 +134,6 @@ def _cleanup_old_jobs():
         job_queues.pop(jid, None)
     if expired:
         logger.info("Cleaned up %d expired jobs", len(expired))
-
-
-# TODO: Migrate to lifespan context manager when upgrading FastAPI
-@app.on_event("startup")
-async def _start_periodic_cleanup():
-    async def _loop():
-        while True:
-            await asyncio.sleep(CLEANUP_INTERVAL)
-            _cleanup_old_jobs()
-    asyncio.create_task(_loop())
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Graceful shutdown
-# ──────────────────────────────────────────────────────────────────────────────
-
-_shutting_down = False
-
-@app.on_event("startup")
-async def _setup_graceful_shutdown():
-    def _handle_sigterm(*_):
-        global _shutting_down
-        _shutting_down = True
-        logger.info("SIGTERM received, waiting for active jobs to finish (max 30s)…")
-    try:
-        signal.signal(signal.SIGTERM, _handle_sigterm)
-    except (OSError, ValueError):
-        pass  # Not available on all platforms
 
 
 # ──────────────────────────────────────────────────────────────────────────────
