@@ -16,7 +16,7 @@ def _insert_fitted_text(page, bbox: "fitz.Rect", text: str, fontsize: float, col
     """Place translated text inside ``bbox``, shrinking the font so it fits.
 
     ``insert_textbox`` returns a NEGATIVE number when the text doesn't fit, and
-    in that case renders nothing — so the original code silently dropped any
+    in that case renders nothing, so the original code silently dropped any
     translation longer than its source line. We estimate the wrapped height and
     shrink the font first, then fall back to un-clipped ``insert_text``.
     """

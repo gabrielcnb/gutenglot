@@ -206,7 +206,7 @@ async def _run_translation(
             raise
         except Exception as parse_err:
             # Reaching here means the file itself couldn't be opened/parsed
-            # (corrupt or not a real EPUB/PDF) — distinct from a translation
+            # (corrupt or not a real EPUB/PDF), distinct from a translation
             # backend failure, which is handled per-chunk and never raises.
             raise _CorruptFileError() from parse_err
 

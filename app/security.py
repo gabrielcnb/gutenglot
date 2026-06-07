@@ -28,7 +28,7 @@ class UnsafeFileError(Exception):
 def check_zip_safety(data: bytes) -> None:
     """Raise UnsafeFileError if a ZIP-based upload looks like a bomb.
 
-    No-op for non-ZIP data (e.g. PDFs) — those are size-capped on read and
+    No-op for non-ZIP data (e.g. PDFs); those are size-capped on read and
     parsed by PyMuPDF, which streams rather than inflating an archive.
     """
     if not data[:2] == b"PK":
@@ -50,7 +50,7 @@ def check_zip_safety(data: bytes) -> None:
                             "This file expands to too much data and was rejected."
                         )
     except zipfile.BadZipFile:
-        # Not a valid zip — let the downstream parser produce the corrupt-file
+        # Not a valid zip; let the downstream parser produce the corrupt-file
         # error so the user gets a clear, format-specific message.
         return
 

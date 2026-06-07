@@ -72,7 +72,7 @@ async def translate_epub(
     glossary: list[str] | None = None,
 ) -> bytes:
     # ebooklib's read_epub needs a real file path (it calls os.path.isdir on the
-    # argument), so a BytesIO is not accepted — stage the upload in a temp file.
+    # argument), so a BytesIO is not accepted; stage the upload in a temp file.
     with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tf:
         tf.write(file_bytes)
         in_path = tf.name
@@ -82,7 +82,7 @@ async def translate_epub(
         os.unlink(in_path)
     items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
 
-    # Parse all documents once — reuse soup for both counting and translating
+    # Parse all documents once and reuse soup for both counting and translating
     parsed: list[tuple[BeautifulSoup, list[tuple[Tag, list[NavigableString]]]]] = []
     total_blocks = 0
     for item in items:

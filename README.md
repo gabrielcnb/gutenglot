@@ -2,7 +2,7 @@
 
 > Translate any book into any language. Covers preserved, ready for any e-reader.
 
-*Gutenberg gave us the printed book — Gutenglot gives it every language.*
+*Gutenberg gave us the printed book. Gutenglot gives it every language.*
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi)
@@ -15,14 +15,14 @@
 
 ## Features
 
-- **EPUB & PDF translation** — upload either format, get it back translated
-- **MOBI & AZW3 support** — converted to EPUB first (via Calibre), then translated
-- **Format conversion** — EPUB ↔ PDF (Calibre when available, smart fallback)
-- **Bilingual mode** — original and translation side by side in the same file
-- **Cover preserved** — the book cover stays intact in every output
-- **Glossary** — protect names and terms from being translated
-- **100+ languages** — powered by Google Translate / MyMemory, no API key needed
-- **E-reader-ready** — EPUB output works on Kindle, Kobo, and any e-reader
+- **EPUB & PDF translation**: upload either format, get it back translated
+- **MOBI & AZW3 support**: converted to EPUB first (via Calibre), then translated
+- **Format conversion**: EPUB ↔ PDF (Calibre when available, with a fallback)
+- **Bilingual mode**: original and translation side by side in the same file
+- **Cover preserved**: the book cover stays intact in every output
+- **Glossary**: protect names and terms from being translated
+- **100+ languages**: powered by Google Translate / MyMemory, no API key needed
+- **E-reader-ready**: EPUB output works on Kindle, Kobo, and any e-reader
 
 ## How to Use
 
@@ -101,15 +101,15 @@ Browser -> FastAPI
 ### Performance
 
 - EPUB chapters and PDF pages translated in parallel (`asyncio.gather`)
-- Batch translation: ~12–15 blocks per request
+- Batch translation: ~12 to 15 blocks per request
 - Disk-backed translation cache for repeated phrases
 - Rate limiting: 5 jobs/hour per IP, limited concurrency
 
 ### Limitations
 
 - Max file size: 50 MB
-- **Scanned/image-only PDFs are not supported** — there is no OCR; pages without an embedded text layer come out blank. Use an EPUB or a text-based PDF.
-- **PDF output in non-Latin scripts** (Chinese, Arabic, Hindi, Cyrillic, etc.) may render poorly — the PDF overlay uses a Latin font. For those languages, prefer **EPUB output**, which lets the e-reader pick the font.
+- **Scanned/image-only PDFs are not supported.** There is no OCR; pages without an embedded text layer come out blank. Use an EPUB or a text-based PDF.
+- **PDF output in non-Latin scripts** (Chinese, Arabic, Hindi, Cyrillic, etc.) may render poorly, because the PDF overlay uses a Latin font. For those languages, prefer **EPUB output**, which lets the e-reader pick the font.
 - Translated text that is longer than the original may overflow or clip in PDF output.
 - Complex multi-column PDF layouts may shift slightly.
 - Free tier (Render): cold starts after inactivity (~30s on first request).
@@ -137,7 +137,7 @@ If this tool is useful to you, consider supporting development:
 
 ## Copyright & responsible use
 
-Gutenglot is a tool for translating books **you have the right to translate** —
+Gutenglot is a tool for translating books **you have the right to translate**:
 books you own, books you wrote, or works in the public domain. You are solely
 responsible for ensuring you have the rights to any file you upload, and for
 complying with the copyright laws that apply to you. The maintainers do not host,
